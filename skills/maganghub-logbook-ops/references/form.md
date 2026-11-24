@@ -20,7 +20,7 @@
 
 ## Safe Fill Procedure
 
-1. Run `python scripts/logbook_ops.py prepare-fill --date YYYY-MM-DD` to generate and verify the exact field payload and check that the date is not already `SUBMITTED_BY_HUMAN`.
+1. Run `python <skill-dir>/scripts/logbook_ops.py prepare-fill --date YYYY-MM-DD` to generate and verify the exact field payload and check that the date is not already `SUBMITTED_BY_HUMAN`.
 2. Using your agent's built-in browser tool, check existing tabs first or open the preflight URL once.
    - If redirected to login/SSO or gated by any anti-bot/CAPTCHA screen: **stop immediately** (no polling, no bypass), and display the paste-ready draft file (`<data-dir>/drafts/YYYY-MM-DD_report.txt`) for manual copy-paste.
 3. Verify the target date is `Belum Diisi` or `Perlu Tindakan Anda`. Never overwrite an already-submitted report.

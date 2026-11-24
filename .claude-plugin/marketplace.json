@@ -1,0 +1,15 @@
+{
+  "name": "maganghub-logbook-ops",
+  "description": "Zero-dependency Indonesian daily logbook compiler, Delivery Gate, compliance ledger, and safe browser pre-fill skill for MagangHub Monev (Kemnaker).",
+  "owner": {
+    "name": "vanovri"
+  },
+  "plugins": [
+    {
+      "name": "maganghub-logbook-ops",
+      "source": "./",
+      "version": "1.0.0",
+      "description": "Draft, validate, track, and safely pre-fill daily reports on MagangHub Monev (Kemnaker) from today's agent chats, git commits, and user notes."
+    }
+  ]
+}

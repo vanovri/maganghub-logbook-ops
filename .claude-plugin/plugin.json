@@ -1,0 +1,12 @@
+{
+  "name": "maganghub-logbook-ops",
+  "displayName": "maganghub-logbook-ops",
+  "version": "1.0.0",
+  "description": "Draft, validate, track, and safely pre-fill daily reports on MagangHub Monev (Kemnaker) from today's agent chats, git commits, and user notes.",
+  "author": {
+    "name": "Ardhya Novri Ramadhan (vanovri)"
+  },
+  "license": "MIT",
+  "keywords": ["maganghub", "kemnaker", "logbook", "monev", "agent-skills"],
+  "skills": ["./skills/"]
+}

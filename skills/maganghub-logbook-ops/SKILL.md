@@ -16,24 +16,26 @@ Drafts the daily MagangHub Monev report from real work evidence, enforces the De
 > 2. **Human submits only**: never tick the confirmation checkbox and never click **Simpan dan Kirim**.
 > 3. **No bypasses or relay bloat**: never bypass login/SSO/CAPTCHA/anti-bot checks and do not require external browser relay extensions.
 
+Invocation: `/maganghub-logbook-ops [user notes]` (`<skill-dir>` is this skill's installed directory).
+
 ## Workflow
 
 | Step | Action | Tool / Reference |
 |---|---|---|
-| 1 | Collect evidence (`chats` + `git` + `--notes`, auto-redacted) | `scripts/collect_today.py` or `scripts/logbook_ops.py collect` |
+| 1 | Collect evidence (`chats` + `git` + `--notes`, auto-redacted) | `<skill-dir>/scripts/collect_today.py` or `<skill-dir>/scripts/logbook_ops.py collect` |
 | 2 | Filter routine noise, verify struggles & numbers (`W-01`..`W-03`) | Ask user if evidence is missing or struggle is unknown |
 | 3 | Draft 3 Indonesian fields | `references/writing-rules.md`, `references/examples.md` |
-| 4 | Run Delivery Gate (`G-1`..`G-8`) & safety checks (`S-1`..`S-3`) | `scripts/check_report.py` |
-| 5 | Record CSV ledger & paste-ready draft file | `scripts/logbook_ops.py record` |
-| 6 | Prepare & pre-fill in built-in browser (or copy-paste fallback) | `scripts/logbook_ops.py prepare-fill`, `references/form.md` |
-| 7 | User reviews, ticks confirmation checkbox, clicks **Simpan dan Kirim**, confirms | `scripts/logbook_ops.py confirm` |
+| 4 | Run Delivery Gate (`G-1`..`G-8`) & safety checks (`S-1`..`S-3`) | `<skill-dir>/scripts/check_report.py` |
+| 5 | Record CSV ledger & paste-ready draft file | `<skill-dir>/scripts/logbook_ops.py record` |
+| 6 | Prepare & pre-fill in built-in browser (or copy-paste fallback) | `<skill-dir>/scripts/logbook_ops.py prepare-fill`, `references/form.md` |
+| 7 | User reviews, ticks confirmation checkbox, clicks **Simpan dan Kirim**, confirms | `<skill-dir>/scripts/logbook_ops.py confirm` |
 
 ## Quick Commands
 
 ```bash
-python scripts/logbook_ops.py collect --date 2026-11-24 --notes "Review modul autentikasi"
-python scripts/logbook_ops.py gate --json-file report.json --sensitive-terms "ClientA"
-python scripts/logbook_ops.py record --date 2026-11-24 --json-input report.json --sensitive-terms "ClientA"
-python scripts/logbook_ops.py prepare-fill --date 2026-11-24
-python scripts/logbook_ops.py confirm --date 2026-11-24 --actual-minutes 3.0 --revisions 0
+python <skill-dir>/scripts/logbook_ops.py collect --date 2026-11-24 --notes "Review modul autentikasi"
+python <skill-dir>/scripts/logbook_ops.py gate --json-file report.json --sensitive-terms "ClientA"
+python <skill-dir>/scripts/logbook_ops.py record --date 2026-11-24 --json-input report.json --sensitive-terms "ClientA"
+python <skill-dir>/scripts/logbook_ops.py prepare-fill --date 2026-11-24
+python <skill-dir>/scripts/logbook_ops.py confirm --date 2026-11-24 --actual-minutes 3.0 --revisions 0
 ```

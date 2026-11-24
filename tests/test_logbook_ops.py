@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import io
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -12,9 +13,12 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SKILL_SCRIPTS_DIR = REPO_ROOT / "skills" / "maganghub-logbook-ops" / "scripts"
+ROOT_SCRIPTS_DIR = REPO_ROOT / "scripts"
+for _p in (SKILL_SCRIPTS_DIR, ROOT_SCRIPTS_DIR):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
 
 import check_report as gate
 import collect_today as collector
@@ -205,6 +209,87 @@ class TestLogbookOpsAndLeakCheck(unittest.TestCase):
             self.assertIn("OPENAI_KEY", rules)
             self.assertIn("BLOCKLIST_TERM", rules)
             self.assertIn("FORBIDDEN_LOCAL_FILE", rules)
+
+    def test_skill_folder_runs_standalone_when_copied(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            copied_skill = tmp_path / "maganghub-logbook-ops"
+            shutil.copytree(
+                REPO_ROOT / "skills" / "maganghub-logbook-ops",
+                copied_skill,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+            )
+            data_dir = tmp_path / "data"
+            report_json = tmp_path / "report.json"
+            report_json.write_text(
+                json.dumps(
+                    {
+                        "aktivitas": VALID_AKTIVITAS,
+                        "pelajaran": VALID_PELAJARAN,
+                        "kendala": VALID_KENDALA,
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            c_res = subprocess.run(
+                [sys.executable, str(copied_skill / "scripts" / "collect_today.py"), "2026-11-24", "--notes", "Test standalone skill"],
+                cwd=tmp_path,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertIn("Test standalone skill", c_res.stdout)
+
+            subprocess.run(
+                [sys.executable, str(copied_skill / "scripts" / "check_report.py"), str(report_json)],
+                cwd=tmp_path,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(copied_skill / "scripts" / "logbook_ops.py"),
+                    "--data-dir",
+                    str(data_dir),
+                    "record",
+                    "--date",
+                    "2026-11-24",
+                    "--json-input",
+                    str(report_json),
+                    "--raw-notes",
+                    VALID_RAW,
+                ],
+                cwd=tmp_path,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            p_res = subprocess.run(
+                [
+                    sys.executable,
+                    str(copied_skill / "scripts" / "logbook_ops.py"),
+                    "--data-dir",
+                    str(data_dir),
+                    "prepare-fill",
+                    "--date",
+                    "2026-11-24",
+                ],
+                cwd=tmp_path,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            payload = json.loads(p_res.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(len(payload["fields"]), 3)
+            self.assertFalse(payload["human_in_the_loop_guards"]["tick_confirmation_checkbox"])
+            self.assertFalse(payload["human_in_the_loop_guards"]["click_simpan_dan_kirim"])
 
 
 if __name__ == "__main__":

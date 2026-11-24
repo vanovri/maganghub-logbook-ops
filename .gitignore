@@ -1,0 +1,10 @@
+# Local CSV logs & personal drafts (never commit)
+*.csv
+drafts/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.env
+*.local.*
+.DS_Store
+Thumbs.db

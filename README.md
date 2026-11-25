@@ -4,7 +4,7 @@
 
 **Zero-dependency Indonesian daily logbook compiler, Delivery Gate, and compliance ledger for MagangHub Monev (Kemnaker).**
 
-*Built with Python 3.9+ standard library only. Human-in-the-loop enforced: drafts & pre-fills, never auto-submits.*
+*Built with Python 3.9+ standard library only. Gate-verified auto-submit by default with `--draft-only` manual review opt-out.*
 
 ![license](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 ![python](https://img.shields.io/badge/python-3.9%2B%20stdlib--only-green?style=flat-square)
@@ -23,10 +23,10 @@ Missing a daily MagangHub Monev logbook risks stipend deductions, while rushing 
 4. **Pre-publish privacy scanner (`scripts/leak_check.py`)** ensuring no credentials, local OS paths, PII, or confidential client terms enter public repositories.
 
 > [!IMPORTANT]
-> **Hard Human-in-the-Loop Guarantee**
-> - This toolkit **never** ticks the confirmation checkbox and **never** clicks **Simpan dan Kirim** on MagangHub Monev.
-> - This toolkit includes **zero** anti-bot, Cloudflare, or CAPTCHA bypasses and requires **zero** external browser extension relays.
-> - Submitting daily reports also records attendance; the intern always reviews, checks, and submits manually.
+> **Submission Safety Guardrails**
+> - **Gate-verified auto-submit by default (`prepare-fill`)**: ticks the confirmation checkbox and clicks **Simpan dan Kirim** only after the 14-rule Delivery Gate, safety/NDA checks, portal `Belum Diisi`/`Perlu Tindakan Anda` state, and 3-field `textarea.value` parity readback all pass. Pass `--draft-only` to pause before ticking/submitting.
+> - **No bypasses or bloat**: includes **zero** anti-bot, Cloudflare, CAPTCHA, SSO, or placement-geofence bypasses and requires **zero** external browser extension relays.
+> - **No overwrite**: blocks duplicate preparation or overwriting once a date is marked `SUBMITTED_BY_HUMAN` or `AUTO_SUBMITTED`.
 
 ## Install (1 Command)
 
@@ -72,8 +72,8 @@ flowchart LR
     C -- FAIL --> B
     C -- PASS --> D[logbook_ops.py record<br/>CSV ledger + paste file]
     D --> E[prepare-fill<br/>built-in browser OR copy-paste]
-    E --> F[Human Reviews,<br/>Ticks & Submits]
-    F --> G[logbook_ops.py confirm<br/>Median <= 4 min/day]
+    E --> F[Verify parity, tick & submit<br/>or --draft-only stop]
+    F --> G[logbook_ops.py confirm --mode auto<br/>Median <= 4 min/day]
 ```
 
 ## Quickstart (Python 3.9+ stdlib only)
@@ -106,18 +106,22 @@ python skills/maganghub-logbook-ops/scripts/logbook_ops.py --data-dir ./local-da
 
 This creates `./local-data/drafts/2026-11-24_report.txt` and updates `./local-data/logbook.csv` (kept out of git by `.gitignore`).
 
-### 4. Prepare browser fill payload (optional) or copy-paste manually
+### 4. Prepare browser fill & gate-verified auto-submit (or `--draft-only` / copy-paste fallback)
 
 ```bash
+# Default: allows gate-verified auto-submit after 3-field parity readback
 python skills/maganghub-logbook-ops/scripts/logbook_ops.py --data-dir ./local-data prepare-fill --date 2026-11-24
+
+# Optional: pause before confirmation checkbox/submit (or fail on any warning)
+python skills/maganghub-logbook-ops/scripts/logbook_ops.py --data-dir ./local-data prepare-fill --date 2026-11-24 --draft-only --strict-warnings
 ```
 
-Follow [`skills/maganghub-logbook-ops/references/form.md`](skills/maganghub-logbook-ops/references/form.md) using your agent's built-in browser tool (stopping strictly before the confirmation checkbox and **Simpan dan Kirim**), or paste directly from the generated draft file.
+Follow [`skills/maganghub-logbook-ops/references/form.md`](skills/maganghub-logbook-ops/references/form.md) using your agent's built-in browser tool (checking auth/geofence state and verifying 3-field `textarea.value` parity before ticking and clicking **Simpan dan Kirim**), or paste directly from the generated draft file.
 
-### 5. Confirm manual submission & track compliance status
+### 5. Confirm submission & track compliance status
 
 ```bash
-python skills/maganghub-logbook-ops/scripts/logbook_ops.py --data-dir ./local-data confirm --date 2026-11-24 --actual-minutes 3.0 --revisions 0
+python skills/maganghub-logbook-ops/scripts/logbook_ops.py --data-dir ./local-data confirm --date 2026-11-24 --actual-minutes 3.0 --revisions 0 --mode auto
 python skills/maganghub-logbook-ops/scripts/logbook_ops.py --data-dir ./local-data status --start-date 2026-11-16
 ```
 

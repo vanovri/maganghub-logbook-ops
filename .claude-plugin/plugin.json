@@ -1,8 +1,8 @@
 {
   "name": "maganghub-logbook-ops",
   "displayName": "maganghub-logbook-ops",
-  "version": "1.0.0",
-  "description": "Draft, validate, track, and safely pre-fill daily reports on MagangHub Monev (Kemnaker) from today's agent chats, git commits, and user notes.",
+  "version": "1.1.0",
+  "description": "Draft, validate, track, pre-fill, and gate-verified auto-submit daily reports on MagangHub Monev (Kemnaker) with --draft-only opt-out.",
   "author": {
     "name": "Ardhya Novri Ramadhan (vanovri)"
   },

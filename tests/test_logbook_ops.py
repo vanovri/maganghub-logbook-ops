@@ -173,19 +173,105 @@ class TestLogbookOpsAndLeakCheck(unittest.TestCase):
                 rc = ops.main(["--data-dir", tmp, "prepare-fill", "--date", "2026-11-24"])
             self.assertEqual(rc, 0)
             payload = json.loads(buf.getvalue())
-            self.assertEqual(payload["human_in_the_loop_guards"]["tick_confirmation_checkbox"], False)
-            self.assertEqual(payload["human_in_the_loop_guards"]["click_simpan_dan_kirim"], False)
+            self.assertEqual(payload["submit_mode"], "auto_submit")
+            self.assertTrue(payload["submit_guards"]["tick_confirmation_checkbox"])
+            self.assertTrue(payload["submit_guards"]["click_simpan_dan_kirim"])
+            self.assertTrue(payload["submit_guards"]["verify_textarea_parity_before_submit"])
+            self.assertTrue(payload["submit_guards"]["verify_portal_success_before_confirm"])
+            self.assertFalse(payload["submit_guards"]["bypass_antibot_or_captcha"])
+            self.assertFalse(payload["submit_guards"]["bypass_geofence_or_sso"])
+            self.assertEqual(payload["portal"]["submit_button_label"], "Simpan dan Kirim")
+            self.assertTrue(payload["human_in_the_loop_guards"]["tick_confirmation_checkbox"])
+            self.assertTrue(payload["human_in_the_loop_guards"]["click_simpan_dan_kirim"])
+
+            buf_draft = io.StringIO()
+            with redirect_stdout(buf_draft):
+                rc_draft = ops.main(["--data-dir", tmp, "prepare-fill", "--date", "2026-11-24", "--draft-only"])
+            self.assertEqual(rc_draft, 0)
+            draft_payload = json.loads(buf_draft.getvalue())
+            self.assertEqual(draft_payload["submit_mode"], "draft_only")
+            self.assertFalse(draft_payload["submit_guards"]["tick_confirmation_checkbox"])
+            self.assertFalse(draft_payload["submit_guards"]["click_simpan_dan_kirim"])
+            self.assertFalse(draft_payload["human_in_the_loop_guards"]["tick_confirmation_checkbox"])
+            self.assertFalse(draft_payload["human_in_the_loop_guards"]["click_simpan_dan_kirim"])
 
             self.assertEqual(
-                ops.main(["--data-dir", tmp, "confirm", "--date", "2026-11-24", "--actual-minutes", "3.0", "--revisions", "0"]),
+                ops.main(
+                    ["--data-dir", tmp, "confirm", "--date", "2026-11-24", "--actual-minutes", "3.0", "--revisions", "0", "--mode", "auto"]
+                ),
                 0,
             )
-            # Refuses prepare-fill once submitted
+            # Refuses prepare-fill once submitted (AUTO_SUBMITTED)
             self.assertEqual(ops.main(["--data-dir", tmp, "prepare-fill", "--date", "2026-11-24"]), 2)
 
             st = ops.compute_status(tmp_path, "2026-11-24", "2026-11-24")
             self.assertEqual(st["submitted_days"], 1)
             self.assertEqual(st["median_minutes_per_day"], 3.0)
+
+    def test_human_confirm_and_strict_warnings_block(self) -> None:
+        short_akt = "\n".join(
+            [
+                "- Menyusun skema endpoint API autentikasi pengguna.",
+                "- Menguji validasi token pada modul layanan web.",
+                "- Mencatat hasil pengujian integrasi layanan.",
+            ]
+        )
+        short_pel = "Pemahaman mengenai alur verifikasi token dan validasi masukan pengguna meningkat melalui pengujian modul secara terisolasi."
+        short_ken = "Pengujian modul terisolasi sempat terkendala urutan konfigurasi awal sehingga perlu penyesuaian berkas konfigurasi layanan lokal."
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            draft_json = tmp_path / "short.json"
+            draft_json.write_text(
+                json.dumps(
+                    {
+                        "aktivitas": short_akt,
+                        "pelajaran": short_pel,
+                        "kendala": short_ken,
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                ops.main(
+                    [
+                        "--data-dir",
+                        tmp,
+                        "record",
+                        "--date",
+                        "2026-11-25",
+                        "--json-input",
+                        str(draft_json),
+                        "--allow-warnings",
+                    ]
+                ),
+                0,
+            )
+            buf_ok = io.StringIO()
+            with redirect_stdout(buf_ok):
+                rc_ok = ops.main(["--data-dir", tmp, "prepare-fill", "--date", "2026-11-25"])
+            self.assertEqual(rc_ok, 0)
+            ok_payload = json.loads(buf_ok.getvalue())
+            self.assertTrue(ok_payload["warnings"])
+            self.assertEqual(ok_payload["submit_mode"], "auto_submit")
+
+            buf_strict = io.StringIO()
+            with redirect_stdout(buf_strict):
+                rc_strict = ops.main(["--data-dir", tmp, "prepare-fill", "--date", "2026-11-25", "--strict-warnings"])
+            self.assertEqual(rc_strict, 1)
+            strict_payload = json.loads(buf_strict.getvalue())
+            self.assertEqual(strict_payload["blocked_reason"], "WARNINGS_BLOCKED_AUTO_SUBMIT")
+
+            buf_conf = io.StringIO()
+            with redirect_stdout(buf_conf):
+                rc_conf = ops.main(
+                    ["--data-dir", tmp, "confirm", "--date", "2026-11-25", "--actual-minutes", "4.0", "--revisions", "0"]
+                )
+            self.assertEqual(rc_conf, 0)
+            conf_payload = json.loads(buf_conf.getvalue())
+            self.assertEqual(conf_payload["status"], "SUBMITTED_BY_HUMAN")
+            self.assertEqual(ops.main(["--data-dir", tmp, "prepare-fill", "--date", "2026-11-25"]), 2)
 
     def test_leak_scanner_flags_pii_paths_secrets_and_blocklist(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -288,8 +374,32 @@ class TestLogbookOpsAndLeakCheck(unittest.TestCase):
             payload = json.loads(p_res.stdout)
             self.assertTrue(payload["ok"])
             self.assertEqual(len(payload["fields"]), 3)
-            self.assertFalse(payload["human_in_the_loop_guards"]["tick_confirmation_checkbox"])
-            self.assertFalse(payload["human_in_the_loop_guards"]["click_simpan_dan_kirim"])
+            self.assertEqual(payload["submit_mode"], "auto_submit")
+            self.assertTrue(payload["submit_guards"]["tick_confirmation_checkbox"])
+            self.assertTrue(payload["submit_guards"]["click_simpan_dan_kirim"])
+            self.assertTrue(payload["human_in_the_loop_guards"]["tick_confirmation_checkbox"])
+            self.assertTrue(payload["human_in_the_loop_guards"]["click_simpan_dan_kirim"])
+
+            p_draft = subprocess.run(
+                [
+                    sys.executable,
+                    str(copied_skill / "scripts" / "logbook_ops.py"),
+                    "--data-dir",
+                    str(data_dir),
+                    "prepare-fill",
+                    "--date",
+                    "2026-11-24",
+                    "--draft-only",
+                ],
+                cwd=tmp_path,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            draft_payload = json.loads(p_draft.stdout)
+            self.assertEqual(draft_payload["submit_mode"], "draft_only")
+            self.assertFalse(draft_payload["submit_guards"]["tick_confirmation_checkbox"])
+            self.assertFalse(draft_payload["submit_guards"]["click_simpan_dan_kirim"])
 
 
 if __name__ == "__main__":

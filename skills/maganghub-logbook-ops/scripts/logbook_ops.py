@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Generic zero-dependency CLI for MagangHub Monev daily logbook ops.
 
-Pure Python 3.9+ standard library only. Human-in-the-loop enforced:
-drafts, validates, records CSV compliance & speed metrics, and prepares
-form payloads, but NEVER ticks the confirmation checkbox or submits.
+Pure Python 3.9+ standard library only. Supports gate-verified auto-submit
+by default with ``--draft-only`` manual-review opt-out, while strictly
+enforcing no auth/CAPTCHA/geofence bypasses and no overwriting already-submitted dates.
 """
 
 from __future__ import annotations
@@ -39,6 +39,9 @@ MONEV_FORM_FIELDS = [
     ("pelajaran", "pembelajaran", "Pembelajaran yang diperoleh", "Tulis ilmu/pembelajaran yang diperoleh minimal 100 karakter"),
     ("kendala", "kendala", "Kendala yang dialami", "Tulis kendala/hambatan yang dialami minimal 100 karakter"),
 ]
+MONEV_CONFIRM_CHECKBOX_LABEL = "Saya menyatakan telah meninjau dan memastikan isian laporan ini sudah benar"
+MONEV_SUBMIT_BUTTON_LABEL = "Simpan dan Kirim"
+SUBMITTED_STATUSES = {"SUBMITTED_BY_HUMAN", "AUTO_SUBMITTED"}
 
 LOGBOOK_FIELDS = [
     "date",
@@ -245,7 +248,7 @@ def _write_paste_file(draft_dir: Path, entry_date: str, uraian: str, pembelajara
     edit_url = f"{MONEV_BASE_URL}/dashboard/riwayat?date={entry_date}&view=edit"
     content = (
         f"MAGANGHUB MONEV LOGBOOK DRAFT — {entry_date}\n"
-        f"STATUS: DRAFT_PENDING_HUMAN_SUBMIT (DO NOT AUTO-SUBMIT; REVIEW & CLICK 'Simpan dan Kirim' MANUALLY)\n"
+        f"STATUS: DRAFT_PENDING_SUBMIT (COPY-PASTE FALLBACK IF BROWSER/LOGIN/GEOFENCE UNAVAILABLE)\n"
         f"PORTAL EDIT URL: {edit_url}\n"
         f"CHAR COUNTS: {json.dumps(result['char_counts'])}\n"
         f"WARNINGS: {warn_text}\n"
@@ -254,8 +257,8 @@ def _write_paste_file(draft_dir: Path, entry_date: str, uraian: str, pembelajara
         f"[2. Pembelajaran yang diperoleh]\n{pembelajaran.strip()}\n\n"
         f"[3. Kendala yang dialami]\n{kendala.strip()}\n\n"
         f"{'=' * 72}\n"
-        f"AFTER SUBMITTING MANUALLY, RECORD YOUR ACTUAL TIME:\n"
-        f"python scripts/logbook_ops.py confirm --date {entry_date} --actual-minutes <MINUTES> --revisions 0\n"
+        f"AFTER SUBMITTING, RECORD YOUR ACTUAL TIME:\n"
+        f"python scripts/logbook_ops.py confirm --date {entry_date} --actual-minutes <MINUTES> --revisions 0 --mode auto|human\n"
     )
     out_path.write_text(content, encoding="utf-8")
     return out_path
@@ -458,12 +461,13 @@ def cmd_prepare_fill(args: argparse.Namespace) -> int:
     existing = _read_csv_rows(log_csv)
     row_by_date = {r.get("date"): r for r in existing if r.get("date")}
 
-    if args.date in row_by_date and row_by_date[args.date].get("status") == "SUBMITTED_BY_HUMAN":
+    existing_status = row_by_date[args.date].get("status", "") if args.date in row_by_date else ""
+    if existing_status in SUBMITTED_STATUSES:
         print(
             json.dumps(
                 {
                     "ok": False,
-                    "error": f"ALREADY_SUBMITTED: {args.date} is already marked SUBMITTED_BY_HUMAN. Never overwrite a submitted report.",
+                    "error": f"ALREADY_SUBMITTED: {args.date} is already marked {existing_status}. Never overwrite a submitted report.",
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -509,6 +513,15 @@ def cmd_prepare_fill(args: argparse.Namespace) -> int:
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return 1
 
+    if getattr(args, "strict_warnings", False) and res["warnings"]:
+        res["blocked_reason"] = "WARNINGS_BLOCKED_AUTO_SUBMIT"
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 1
+
+    auto_submit = not getattr(args, "draft_only", False)
+    submit_mode = "auto_submit" if auto_submit else "draft_only"
+    confirm_mode = "auto" if auto_submit else "human"
+
     values = {
         "aktivitas": uraian.strip(),
         "pelajaran": pembelajaran.strip(),
@@ -529,26 +542,40 @@ def cmd_prepare_fill(args: argparse.Namespace) -> int:
     if not paste_file.exists():
         paste_file = _write_paste_file(data_dir / "drafts", args.date, uraian, pembelajaran, kendala, res)
 
+    confirm_cmd = (
+        f"python scripts/logbook_ops.py confirm --date {args.date} --actual-minutes <MINUTES> --revisions 0 --mode {confirm_mode}"
+    )
     output = {
         "ok": True,
         "date": args.date,
+        "submit_mode": submit_mode,
         "portal": {
             "preflight_url": MONEV_PREFLIGHT_URL,
             "edit_url": f"{MONEV_BASE_URL}/dashboard/riwayat?date={args.date}&view=edit",
             "logged_in_tabs": ["Beranda", "Riwayat", "Perkembangan", "Akun"],
+            "confirmation_checkbox_label": MONEV_CONFIRM_CHECKBOX_LABEL,
+            "submit_button_label": MONEV_SUBMIT_BUTTON_LABEL,
+            "geofence_note": "MagangHub only accepts submissions for today's date at the placement location; stop and report server errors without marking submitted.",
             "reload_warning": "Open the tab once; never re-call browser.open on an already-open Monev edit tab.",
         },
+        "submit_guards": {
+            "tick_confirmation_checkbox": auto_submit,
+            "click_simpan_dan_kirim": auto_submit,
+            "verify_textarea_parity_before_submit": True,
+            "verify_portal_success_before_confirm": True,
+            "bypass_antibot_or_captcha": False,
+            "bypass_geofence_or_sso": False,
+        },
         "human_in_the_loop_guards": {
-            "tick_confirmation_checkbox": False,
-            "click_simpan_dan_kirim": False,
+            "tick_confirmation_checkbox": auto_submit,
+            "click_simpan_dan_kirim": auto_submit,
             "bypass_antibot_or_captcha": False,
         },
         "fields": fields_payload,
         "warnings": res["warnings"],
         "fallback_paste_file": str(paste_file),
-        "after_human_submit_command": (
-            f"python scripts/logbook_ops.py confirm --date {args.date} --actual-minutes <MINUTES> --revisions 0"
-        ),
+        "after_submit_command": confirm_cmd,
+        "after_human_submit_command": confirm_cmd,
     }
     print(json.dumps(output, ensure_ascii=False, indent=2))
     return 0
@@ -559,13 +586,16 @@ def cmd_confirm(args: argparse.Namespace) -> int:
     data_dir = Path(args.data_dir)
     log_csv = data_dir / "logbook.csv"
     met_csv = data_dir / "ops_metrics.csv"
+    mode = getattr(args, "mode", "human") or "human"
+    target_status = "AUTO_SUBMITTED" if mode == "auto" else "SUBMITTED_BY_HUMAN"
+    default_note = "Confirmed auto submit" if mode == "auto" else "Confirmed human submit"
 
     log_rows = _read_csv_rows(log_csv)
     found = False
     now_iso = dt.datetime.now().isoformat(timespec="seconds")
     for r in log_rows:
         if r.get("date") == args.date:
-            r["status"] = "SUBMITTED_BY_HUMAN"
+            r["status"] = target_status
             r["updated_at"] = now_iso
             found = True
             break
@@ -585,9 +615,9 @@ def cmd_confirm(args: argparse.Namespace) -> int:
             "baseline_minutes": baseline,
             "actual_minutes": actual,
             "saved_minutes": saved,
-            "status": "SUBMITTED_BY_HUMAN",
+            "status": target_status,
             "mentor_revisions": int(args.revisions),
-            "notes": args.note or "Confirmed human submit",
+            "notes": args.note or default_note,
         }
     )
     updated_met.sort(key=lambda r: r.get("date", ""))
@@ -598,7 +628,8 @@ def cmd_confirm(args: argparse.Namespace) -> int:
             {
                 "ok": True,
                 "date": args.date,
-                "status": "SUBMITTED_BY_HUMAN",
+                "status": target_status,
+                "submit_mode": mode,
                 "actual_minutes": actual,
                 "saved_minutes": saved,
                 "mentor_revisions": int(args.revisions),
@@ -625,14 +656,14 @@ def compute_status(data_dir: Path, start_date_str: str, as_of_str: str) -> dict[
         cur += dt.timedelta(days=1)
 
     missed = [d for d in workdays if d not in recorded_by_date]
-    pending = [d for d in workdays if d in recorded_by_date and recorded_by_date[d].get("status") != "SUBMITTED_BY_HUMAN"]
-    submitted = [d for d in workdays if d in recorded_by_date and recorded_by_date[d].get("status") == "SUBMITTED_BY_HUMAN"]
+    pending = [d for d in workdays if d in recorded_by_date and recorded_by_date[d].get("status") not in SUBMITTED_STATUSES]
+    submitted = [d for d in workdays if d in recorded_by_date and recorded_by_date[d].get("status") in SUBMITTED_STATUSES]
 
     auto_submitted_mins: list[float] = []
     total_saved = 0.0
     total_revisions = 0
     for r in met_rows:
-        if r.get("status") != "SUBMITTED_BY_HUMAN":
+        if r.get("status") not in SUBMITTED_STATUSES:
             continue
         total_revisions += int(r.get("mentor_revisions") or 0)
         if r.get("notes") == "baseline_manual_pre_ops":
@@ -727,7 +758,7 @@ def build_parser() -> argparse.ArgumentParser:
     rec.add_argument("--raw-notes-file", default="", help="Path to raw notes file")
     rec.add_argument("--sensitive-terms", default="", help="Comma-separated confidential terms to block")
     rec.add_argument("--skip-delivery-gate", action="store_true", help="Skip G-1..G-8 style gate checks (safety rules remain active)")
-    rec.add_argument("--status", default="DRAFT_PENDING_HUMAN_SUBMIT", choices=["DRAFT_PENDING_HUMAN_SUBMIT", "SUBMITTED_BY_HUMAN"])
+    rec.add_argument("--status", default="DRAFT_PENDING_HUMAN_SUBMIT", choices=["DRAFT_PENDING_HUMAN_SUBMIT", "SUBMITTED_BY_HUMAN", "AUTO_SUBMITTED"])
     rec.add_argument("--baseline-minutes", type=float, default=BASELINE_MINUTES_DEFAULT)
     rec.add_argument("--actual-minutes", type=float, default=None)
     rec.add_argument("--revisions", type=int, default=0)
@@ -736,17 +767,20 @@ def build_parser() -> argparse.ArgumentParser:
     rec.add_argument("--force-overwrite-confirmed", action="store_true", help="Explicitly confirm overwriting an existing date")
     rec.set_defaults(func=cmd_record)
 
-    pf = sub.add_parser("prepare-fill", help="Emit validated human-in-the-loop Monev browser fill payload (never submits)")
+    pf = sub.add_parser("prepare-fill", help="Emit validated Monev browser fill/submit payload (auto-submit default; --draft-only stops before submit)")
     pf.add_argument("--date", required=True, help="Workday ISO date YYYY-MM-DD")
     pf.add_argument("--json-file", default="", help="Optional JSON draft override instead of reading logbook.csv")
     pf.add_argument("--sensitive-terms", default="", help="Comma-separated confidential terms")
+    pf.add_argument("--draft-only", action="store_true", help="Stop before ticking the confirmation checkbox and clicking Simpan dan Kirim")
+    pf.add_argument("--strict-warnings", action="store_true", help="Block prepare-fill when non-fatal warnings exist")
     pf.set_defaults(func=cmd_prepare_fill)
 
-    conf = sub.add_parser("confirm", help="Mark a drafted date as SUBMITTED_BY_HUMAN and log actual minutes")
+    conf = sub.add_parser("confirm", help="Mark a drafted date as submitted (SUBMITTED_BY_HUMAN or AUTO_SUBMITTED) and log actual minutes")
     conf.add_argument("--date", required=True, help="Workday ISO date YYYY-MM-DD")
     conf.add_argument("--actual-minutes", type=float, required=True, help="Actual end-to-end minutes taken")
     conf.add_argument("--baseline-minutes", type=float, default=BASELINE_MINUTES_DEFAULT)
     conf.add_argument("--revisions", type=int, default=0, help="Mentor revision count (0 if approved cleanly)")
+    conf.add_argument("--mode", choices=["human", "auto"], default="human", help="Submission mode: human (SUBMITTED_BY_HUMAN) or auto (AUTO_SUBMITTED)")
     conf.add_argument("--note", default="")
     conf.set_defaults(func=cmd_confirm)
 

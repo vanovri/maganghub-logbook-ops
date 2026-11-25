@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-25T16:15:00+07:00",
+  "entry_count": 2,
+  "entries": {
+    "2026-11-25": {
+      "aktivitas": "- Mengaudit endpoint autentikasi pada layanan backend menggunakan skrip pengujian otomatis untuk memverifikasi masa berlaku token sesi dan respons kode error.\n- Memperbaiki validasi skema payload permintaan pada modul manajemen pengguna agar input karakter khusus tidak memicu kegagalan parsing JSON.\n- Menjalankan ulang rangkaian unit test dan integration test pada modul otorisasi guna memastikan tidak ada regresi setelah pembaruan validator.",
+      "pelajaran": "Pengujian batas tepi pada validasi payload API dan masa kedaluwarsa token autentikasi membantu mencegah celah kesalahan parsing sebelum kode digabungkan ke cabang utama. Penerapan pemeriksaan input lebih awal pada lapisan skema juga memperjelas pesan galat bagi pengembang frontend saat melakukan integrasi.",
+      "kendala": "Dokumentasi contoh respons galat untuk skenario token kedaluwarsa di lingkungan staging belum seragam antar layanan sehingga memerlukan verifikasi langsung ke log server bersama pembimbing. Keterbatasan data uji akun dengan peran terbatas juga sempat memperlambat pengujian skenario penolakan akses."
+    },
+    "2026-11-26": {
+      "aktivitas": "- Menyusun skenario pengujian antarmuka responsif pada perangkat seluler untuk halaman formulir pelaporan harian dan ringkasan riwayat.\n- Mengevaluasi performa kueri basis data pada halaman daftar riwayat menggunakan indeks komposit tanggal dan status persetujuan agar waktu muat lebih singkat.\n- Mendokumentasikan temuan ketidaksesuaian tata letak tombol konfirmasi pada layar sempit ke dalam pelacak isu tim untuk ditindaklanjuti pada sprint berikutnya.",
+      "pelajaran": "Optimasi indeks komposit pada kolom tanggal dan status mampu menurunkan latensi pembacaan tabel riwayat secara nyata tanpa mengubah struktur aplikasi yang sudah berjalan. Evaluasi tampilan pada lebar layar ponsel juga menunjukkan pentingnya penempatan tombol aksi utama agar tetap terlihat tanpa perlu gulir berlebih.",
+      "kendala": "Perangkat uji fisik berukuran layar kecil belum tersedia di meja kerja sehingga verifikasi tata letak hanya dapat dilakukan melalui mode emulasi peramban sambil menunggu jadwal peminjaman unit uji dari tim QA."
+    }
+  }
+}

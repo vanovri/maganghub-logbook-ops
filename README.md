@@ -118,6 +118,13 @@ python skills/maganghub-logbook-ops/scripts/logbook_ops.py --data-dir ./local-da
 
 Follow [`skills/maganghub-logbook-ops/references/form.md`](skills/maganghub-logbook-ops/references/form.md) using your agent's built-in browser tool (checking auth/geofence state and verifying 3-field `textarea.value` parity before ticking and clicking **Simpan dan Kirim**), or paste directly from the generated draft file.
 
+## iOS / Safari Companion
+
+Want ~5-second pre-fill & gate-verified auto-submit directly inside **iOS Safari** (without macOS/Xcode sideloading or external relay bloat)? See [`ios-safari/README.md`](ios-safari/README.md):
+
+- **`ios-safari/excel_to_ios_json.py`**: pure Python stdlib `.xlsx` / `.csv` / `.tsv` converter with Delivery Gate, secret/NDA, and 3-day Jaccard duplicate-drift checks.
+- **`ios-safari/ios_shortcut_fill.js`** & **`ios-safari/safari_userscript.user.js`**: Safari scripts with SPA native-setter fill, byte-for-byte parity readback, and configurable auto-submit or `--draft-only` pause.
+
 ### 5. Confirm submission & track compliance status
 
 ```bash
@@ -146,6 +153,12 @@ python scripts/leak_check.py . --blocklist "ClientA,ProjectX"
 ├── README.md
 ├── scripts/
 │   └── leak_check.py           # Pre-publish PII, local-path, credential & blocklist scanner
+├── ios-safari/
+│   ├── README.md               # Indonesian setup guide for iOS Shortcuts & Safari Userscripts
+│   ├── excel_to_ios_json.py    # Pure-stdlib .xlsx/.csv/.tsv -> validated JSON + JS emitter
+│   ├── ios_shortcut_fill.js    # Apple iOS Shortcuts "Run JavaScript on Web Page" script
+│   ├── safari_userscript.user.js # Safari iOS / Tampermonkey userscript with JSON import
+│   └── sample_logbooks.json    # Generic 2-day sample JSON passing all Delivery Gate checks
 ├── skills/maganghub-logbook-ops/
 │   ├── SKILL.md                # Agent skill workflow
 │   ├── scripts/
